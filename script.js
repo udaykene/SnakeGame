@@ -1,4 +1,4 @@
-// Global Variables
+// Selectors
 const modal = document.querySelector(".modal");
 const StartButton = document.querySelector(".btn-start");
 const StartGameModal = document.querySelector(".start-game");
@@ -9,200 +9,222 @@ const highscoreElement = document.querySelector("#highscore");
 const ScoreElement = document.querySelector("#score");
 const timeElement = document.querySelector("#time");
 
-let ROWS = 0;
-let COlS = 0;
-let highScore = 0;
-let score = 0;
-let time = `00:00`;
-let snake = [
-  {
-    x: 0,
-    y: 0,
-  },
-];
-
 const board = document.querySelector(".board");
-const blocks = [];
+const blocks = {};
 
-function calculateColsNRows() {
-  const blockHeight = 50;
-  const blockWidth = 50;
+let ROWS = 0;
+let COLS = 0;
+let score = 0;
+let highScore = Number(localStorage.getItem("highScore")) || 0;
+highscoreElement.innerText = highScore;
 
-  const cols = Math.floor(board.clientWidth / blockWidth);
-  const rows = Math.floor(board.clientHeight / blockHeight);
-
-  return {
-    rows: rows,
-    cols: cols,
-  };
-}
-function calculateSnake() {
-  let xx = Math.floor(Math.random() * ROWS);
-  let yy = Math.floor(Math.random() * COlS);
-
-  snake = [
-    {
-      x: xx,
-      y: yy,
-    },
-  ];
-}
-
-function getRandomDirection() {
-  const directions = ["up", "down", "left", "right"];
-  const index = Math.floor(Math.random() * directions.length);
-  return directions[index];
-}
-
-let direction = getRandomDirection();
-let IntervalId = null;
-let timerIntervalId = null; 
+let snake = [];
+let direction = "right";
+let pendingDirection = direction; // newest requested direction (applied at next frame)
+const opposite = {
+  up: "down",
+  down: "up",
+  left: "right",
+  right: "left",
+};
 let food = {};
+let gameInterval = null;
+let timerInterval = null;
+let time = 0;
 
-setTimeout(function () {
-  const { rows, cols } = calculateColsNRows();
+// Movement map
+const moves = {
+  up: { x: -1, y: 0 },
+  down: { x: 1, y: 0 },
+  left: { x: 0, y: -1 },
+  right: { x: 0, y: 1 },
+};
 
-  ROWS = rows;
-  COlS = cols;
+// BOARD INITIALIZATION
+function initBoard() {
+  const blockSize = 50;
+  COLS = Math.floor(board.clientWidth / blockSize);
+  ROWS = Math.floor(board.clientHeight / blockSize);
 
+  // 1️⃣ CREATE ALL BLOCKS FIRST
   for (let i = 0; i < ROWS; i++) {
-    for (let j = 0; j < COlS; j++) {
+    for (let j = 0; j < COLS; j++) {
       const block = document.createElement("div");
       block.classList.add("block");
       board.appendChild(block);
-      // block.innerText = `${i}-${j}`;
       blocks[`${i}-${j}`] = block;
     }
   }
 
+  // 2️⃣ THEN RESET GAME STATE
+  resetGameState();
+
+  // 3️⃣ THEN RENDER FOOD
   renderFood();
-}, 100);
+}
 
+// Reset state (used on restart)
+function resetGameState() {
+  if (Object.keys(blocks).length === 0) return;
+  snake = [
+    {
+      x: Math.floor(Math.random() * ROWS),
+      y: Math.floor(Math.random() * COLS),
+    },
+  ];
+  score = 0;
+  ScoreElement.innerText = "00";
+  time = 0;
+  timeElement.innerText = "00:00";
+
+  direction = getRandomDirection();
+
+  // clear classes
+  Object.values(blocks).forEach((b) => {
+    b.classList.remove("fill");
+    b.classList.remove("food");
+  });
+
+  blocks[`${snake[0].x}-${snake[0].y}`].classList.add("fill");
+}
+
+// FOOD
+function renderFood() {
+  let fx, fy;
+
+  do {
+    fx = Math.floor(Math.random() * ROWS);
+    fy = Math.floor(Math.random() * COLS);
+  } while (snake.some((s) => s.x === fx && s.y === fy)); // prevent spawning on snake
+
+  Object.values(blocks).forEach((b) => b.classList.remove("food"));
+
+  food = { x: fx, y: fy };
+  blocks[`${fx}-${fy}`].classList.add("food");
+}
+
+// CORE GAME LOOP
 function render() {
-  let head = null;
 
-  if (localStorage.getItem("highScore") != null) {
-    highscoreElement.innerHTML = localStorage.getItem("highScore");
-  }
+  direction = pendingDirection;
 
-  blocks[`${food.x}-${food.y}`].classList.add("food");
+  const move = moves[direction];
+  const head = { x: snake[0].x + move.x, y: snake[0].y + move.y };
 
-  if (direction === "left") {
-    head = { x: snake[0].x, y: snake[0].y - 1 };
-  } else if (direction === "right") {
-    head = { x: snake[0].x, y: snake[0].y + 1 };
-  } else if (direction === "down") {
-    head = { x: snake[0].x + 1, y: snake[0].y };
-  } else if (direction === "up") {
-    head = { x: snake[0].x - 1, y: snake[0].y };
-  }
-
-  // Game Over Logic
-  if (head.x < 0 || head.x >= ROWS || head.y < 0 || head.y >= COlS) {
-    // alert("Game Over");
-    clearInterval(IntervalId);
-    modal.style.display = "flex";
-    StartGameModal.style.display = "none";
-    GameOverModal.style.display = "flex";
+  // WALL COLLISION
+  if (head.x < 0 || head.x >= ROWS || head.y < 0 || head.y >= COLS) {
+    endGame();
     return;
   }
 
-  // Food eating logic
-  if (head.x == food.x && head.y == food.y) {
-    updateScore();
+  // SELF COLLISION (snake bites itself)
+  if (snake.some((segment) => segment.x === head.x && segment.y === head.y)) {
+    endGame();
+    return;
+  }
+
+  // FOOD
+  if (head.x === food.x && head.y === food.y) {
+    score++;
+    ScoreElement.innerText = score;
+    updateHighScore();
+
+    snake.unshift(head);
+    blocks[`${head.x}-${head.y}`].classList.add("fill");
+
     blocks[`${food.x}-${food.y}`].classList.remove("food");
     renderFood();
-    blocks[`${food.x}-${food.y}`].classList.add("food");
-    snake.unshift(head);
-    // calculateHighScore();
+    return;
   }
 
-  snake.forEach((segment) => {
-    blocks[`${segment.x}-${segment.y}`].classList.remove("fill");
-  });
+  // NORMAL MOVE
+  const tail = snake.pop();
+  blocks[`${tail.x}-${tail.y}`].classList.remove("fill");
 
   snake.unshift(head);
-  snake.pop();
-  snake.forEach((segment) => {
-    blocks[`${segment.x}-${segment.y}`].classList.add("fill");
-  });
+  blocks[`${head.x}-${head.y}`].classList.add("fill");
 }
 
-function renderFood() {
-  food = {
-    x: Math.floor(Math.random() * ROWS),
-    y: Math.floor(Math.random() * COlS),
-  };
+// High Score
+function updateHighScore() {
+  if (score > highScore) {
+    highScore = score;
+    localStorage.setItem("highScore", highScore);
+    highscoreElement.innerText = highScore;
+  }
 }
 
+// Start Game
 StartButton.addEventListener("click", () => {
   modal.style.display = "none";
-  IntervalId = setInterval(() => {
-    render();
-  }, 300);
-
-  timerIntervalId = setInterval(() => {
-    let [min,sec] = time.split(":").map(Number);
-
-    if(sec == 59){
-      min+=1;
-      sec=0;
-    }else{
-      sec+=1;
-    }
-
-    time = `${min.toString()}:${sec.toString()}`;
-    timeElement.innerText = time;
-  },1000)
+  startGame();
 });
 
-RestartButton.addEventListener("click", RestartGame);
+function waitForBoardReady(callback) {
+  const check = () => {
+    if (board.clientWidth > 0 && board.clientHeight > 0) {
+      callback();
+    } else {
+      requestAnimationFrame(check);
+    }
+  };
+  check();
+}
 
-function RestartGame() {
-  resetScore();
-  // resetTime();
-  time=`00:00`;
-  timeElement.innerText = time;
-  direction = getRandomDirection();
-  snake.forEach((segment) => {
-    blocks[`${segment.x}-${segment.y}`].classList.remove("fill");
-  });
-  blocks[`${food.x}-${food.y}`].classList.remove("food");
+// Restart
+RestartButton.addEventListener("click", () => {
   modal.style.display = "none";
-
-  calculateSnake();
+  resetGameState();
   renderFood();
-  IntervalId = setInterval(() => {
-    render();
-  }, 300);
+  startGame();
+});
+
+// Start intervals
+function startGame() {
+  gameInterval = setInterval(render, 200);
+
+  timerInterval = setInterval(() => {
+    time++;
+    const min = String(Math.floor(time / 60)).padStart(2, "0");
+    const sec = String(time % 60).padStart(2, "0");
+    timeElement.innerText = `${min}:${sec}`;
+  }, 1000);
 }
 
-// Scoreee
+// End game
+function endGame() {
+  clearInterval(gameInterval);
+  clearInterval(timerInterval);
 
-function updateScore() {
-  score += 1;
-  ScoreElement.innerHTML = score;
-  let previousHighScore = localStorage.getItem("highScore");
-  if (score > previousHighScore) {
-    previousHighScore = score;
-    localStorage.setItem("highScore", previousHighScore.toString());
-    highscoreElement.innerHTML = localStorage.getItem("highScore");
-  }
+  StartGameModal.style.display = "none";
+  GameOverModal.style.display = "flex";
+
+  modal.style.display = "flex";
 }
 
-function resetScore() {
-  score = 0;
-  ScoreElement.innerHTML = `00`;
+// Random start direction
+function getRandomDirection() {
+  return ["up", "down", "left", "right"][Math.floor(Math.random() * 4)];
 }
-addEventListener("keydown", (event) => {
-  console.log(event.code);
-  if (event.code == "ArrowUp" || event.code == "KeyW") {
-    direction = "up";
-  } else if (event.code == "ArrowDown" || event.code == "KeyS") {
-    direction = "down";
-  } else if (event.code == "ArrowLeft" || event.code == "KeyA") {
-    direction = "left";
-  } else if (event.code == "ArrowRight" || event.code == "KeyD") {
-    direction = "right";
-  }
+
+// Controls
+window.addEventListener("keydown", (e) => {
+  let newDir = null;
+  if (e.code === "ArrowUp" || e.code === "KeyW") newDir = "up";
+  else if (e.code === "ArrowDown" || e.code === "KeyS") newDir = "down";
+  else if (e.code === "ArrowLeft" || e.code === "KeyA") newDir = "left";
+  else if (e.code === "ArrowRight" || e.code === "KeyD") newDir = "right";
+
+  if(!newDir) return;
+
+  if(opposite[direction] === newDir) return;
+
+  pendingDirection = newDir;
+});
+
+// INIT
+window.addEventListener("load", () => {
+  waitForBoardReady(() => {
+    initBoard();
+  });
 });
