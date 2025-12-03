@@ -15,6 +15,9 @@ const blocks = {};
 let ROWS = 0;
 let COLS = 0;
 let score = 0;
+let speed = 500; // starting speed in ms
+const minSpeed = 120; // fastest allowed speed
+const speedIncrease = 15; // decrease interval when eating
 let highScore = Number(localStorage.getItem("highScore")) || 0;
 highscoreElement.innerText = highScore;
 
@@ -86,6 +89,7 @@ function resetGameState() {
   });
 
   blocks[`${snake[0].x}-${snake[0].y}`].classList.add("fill");
+  speed = 500;
 }
 
 // FOOD
@@ -105,7 +109,6 @@ function renderFood() {
 
 // CORE GAME LOOP
 function render() {
-
   direction = pendingDirection;
 
   const move = moves[direction];
@@ -134,6 +137,15 @@ function render() {
 
     blocks[`${food.x}-${food.y}`].classList.remove("food");
     renderFood();
+
+    if (speed > minSpeed) {
+      speed -= speedIncrease;
+    }
+
+    // restart interval with new speed
+    clearInterval(gameInterval);
+    gameInterval = setInterval(render, speed);
+
     return;
   }
 
@@ -181,7 +193,7 @@ RestartButton.addEventListener("click", () => {
 
 // Start intervals
 function startGame() {
-  gameInterval = setInterval(render, 200);
+  gameInterval = setInterval(render, speed);
 
   timerInterval = setInterval(() => {
     time++;
@@ -215,9 +227,9 @@ window.addEventListener("keydown", (e) => {
   else if (e.code === "ArrowLeft" || e.code === "KeyA") newDir = "left";
   else if (e.code === "ArrowRight" || e.code === "KeyD") newDir = "right";
 
-  if(!newDir) return;
+  if (!newDir) return;
 
-  if(opposite[direction] === newDir) return;
+  if (opposite[direction] === newDir) return;
 
   pendingDirection = newDir;
 });
