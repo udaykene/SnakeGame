@@ -16,6 +16,7 @@ let ROWS = 0;
 let COLS = 0;
 let score = 0;
 let speed = 500; // starting speed in ms
+let isPaused = false;
 const minSpeed = 120; // fastest allowed speed
 const speedIncrease = 15; // decrease interval when eating
 let highScore = Number(localStorage.getItem("highScore")) || 0;
@@ -109,6 +110,8 @@ function renderFood() {
 
 // CORE GAME LOOP
 function render() {
+  if (isPaused) return;
+
   direction = pendingDirection;
 
   const move = moves[direction];
@@ -221,6 +224,15 @@ function getRandomDirection() {
 
 // Controls
 window.addEventListener("keydown", (e) => {
+  // || Pause / Resume
+  if (e.code === "Space") {
+    togglePause();
+    return;
+  }
+
+  // Impossible to change direction while paused
+  if (isPaused) return;
+
   let newDir = null;
   if (e.code === "ArrowUp" || e.code === "KeyW") newDir = "up";
   else if (e.code === "ArrowDown" || e.code === "KeyS") newDir = "down";
@@ -233,6 +245,30 @@ window.addEventListener("keydown", (e) => {
 
   pendingDirection = newDir;
 });
+
+// Toggle pause
+function togglePause() {
+  if (!isPaused) {
+    // Pause the game
+    isPaused = true;
+
+    clearInterval(gameInterval);
+    clearInterval(timerInterval);
+  } else {
+    // Resume the game
+    isPaused = false;
+
+    // Restart intervals with SAME Speed
+    gameInterval = setInterval(render, speed);
+
+    timerInterval = setInterval(() => {
+      time++;
+      const min = String(Math.floor(time / 60)).padStart(2, "0");
+      const sec = String(time % 60).padStart(2, "0");
+      timeElement.innerText = `${min}:${sec}`;
+    }, 1000);
+  }
+}
 
 // INIT
 window.addEventListener("load", () => {
