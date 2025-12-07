@@ -9,7 +9,7 @@
   /* Background Colors */
   --bg-primary-color: #040404;
   --bg-fill-color: #ff626c;
-  --bg-food-color:#FF0800;
+  --bg-food-color: #ff0800;
   /* Text Colors */
   --txt-primary-color: #edecec;
 
@@ -108,15 +108,26 @@ section .infos {
 
 .fill {
   background-color: var(--bg-fill-color);
+  transition: background-color 0.15s linear, transform 0.15s linear;
 }
 
-.food{
-  background-color:var(--bg-food-color);
+.head {
+  background-color: #00f7ff !important; /* cyan/blue color for head */
+  border: 2px solid #ffffff; /* white outline */
+  z-index: 2;
 }
 
-.modal{
+.block.moving {
+  transform: scale(1.05);
+}
+
+.food {
+  background-color: var(--bg-food-color);
+}
+
+.modal {
   height: 100vh;
-  width:100vw;
+  width: 100vw;
   position: fixed;
   top: 0;
   background-color: #676767c3;
@@ -127,21 +138,22 @@ section .infos {
   align-items: center;
   flex-grow: 0;
 }
-.start-game,.game-over{
+.start-game,
+.game-over {
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
-.start-game{
+.start-game {
   /* display:bl; */
 }
-.game-over{
+.game-over {
   display: none;
 }
-.modal h3{
+.modal h3 {
   font-size: 2rem;
 }
-.btn{
+.btn {
   width: auto;
   font-size: 1.2rem;
   font-weight: 600;
@@ -149,7 +161,7 @@ section .infos {
   align-self: center;
   padding: var(--space-sm) var(--space-md);
   border-radius: var(--border-radius-sm);
-  border:none;
+  border: none;
 }
 /* FOR DESKTOPS */
 @media screen and (max-width: 1024px) {

@@ -76,20 +76,27 @@ function resetGameState() {
       y: Math.floor(Math.random() * COLS),
     },
   ];
+
+  // Resets UI Values
   score = 0;
   ScoreElement.innerText = "00";
   time = 0;
   timeElement.innerText = "00:00";
 
+  // Reset Direction
   direction = getRandomDirection();
+  pendingDirection = direction;
 
   // clear classes
   Object.values(blocks).forEach((b) => {
     b.classList.remove("fill");
     b.classList.remove("food");
+    b.classList.remove("head");
   });
 
   blocks[`${snake[0].x}-${snake[0].y}`].classList.add("fill");
+  blocks[`${snake[0].x}-${snake[0].y}`].classList.add("head");
+
   speed = 500;
 }
 
@@ -135,11 +142,19 @@ function render() {
     ScoreElement.innerText = score;
     updateHighScore();
 
+    // Remove head class from current head
+    const currentHead = snake[0];
+    blocks[`${currentHead.x}-${currentHead.y}`].classList.remove("head");
+
+    // Grow snake
     snake.unshift(head);
     blocks[`${head.x}-${head.y}`].classList.add("fill");
+    blocks[`${head.x}-${head.y}`].classList.add("head");
 
-    blocks[`${food.x}-${food.y}`].classList.remove("food");
-    renderFood();
+    // Smooth animation
+    const newHeadBlock2 = blocks[`${head.x}-${head.y}`];
+    newHeadBlock2.classList.add("moving");
+    setTimeout(() => newHeadBlock2.classList.remove("moving"), 150);
 
     if (speed > minSpeed) {
       speed -= speedIncrease;
@@ -149,15 +164,28 @@ function render() {
     clearInterval(gameInterval);
     gameInterval = setInterval(render, speed);
 
+    renderFood();
     return;
   }
 
   // NORMAL MOVE
+  // Remove head class from current head (snake[0])
+  const currentHead = snake[0];
+  blocks[`${currentHead.x}-${currentHead.y}`].classList.remove("head");
+
+  // Move tail
   const tail = snake.pop();
   blocks[`${tail.x}-${tail.y}`].classList.remove("fill");
 
+  // Add new head
   snake.unshift(head);
   blocks[`${head.x}-${head.y}`].classList.add("fill");
+  blocks[`${head.x}-${head.y}`].classList.add("head");
+
+  // Smooth animation
+  const newHeadBlock = blocks[`${head.x}-${head.y}`];
+  newHeadBlock.classList.add("moving");
+  setTimeout(() => newHeadBlock.classList.remove("moving"), 150);
 }
 
 // High Score
